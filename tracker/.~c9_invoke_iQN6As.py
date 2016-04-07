@@ -38,6 +38,12 @@ def netaporter_process():
         #if 'Dio' in storebrand[1].name:
         pass #items = ntracker._set_items_for_brand(storebrand[0], session, insert=True)
 
+def bijenkorf_process():
+    btracker = bijenkorf.BijenkorfTracker(session)
+    #btracker._set_brands(session, insert=True)
+    for storebrand in btracker._brands:
+        items = btracker._get_items_for_brand(storebrand[0], session, insert=True, thisweekonly=True)
+
 def tedbaker_process():
     tedtracker = tedbaker.TedBakerTracker(session)
     #tedtracker._set_brands(session, insert=False)
@@ -79,5 +85,136 @@ if __name__ == "__main__":
     ztracker = zalando.ZalandoTracker(session)
     ztracker._get_new_items(session)
 
-    btracker = bijenkorf.BijenkorfTracker(session)
-    btracker._get_new_items(session)
+    ztracker = zalando.ZalandoTracker(session)
+    ztracker._get_new_items(session)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

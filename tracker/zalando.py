@@ -22,6 +22,7 @@ import urllib, urllib2
 import unidecode
 import shortuuid
 import time
+from datetime import datetime
 
 ################################################################################
 # Definitions
@@ -115,11 +116,14 @@ class ZalandoTracker(Tracker):
         olog.log("ZalandoTracker._set_brands < Inserted brands is <b>"+str(insertedElements)+"</b>", 'info')
         return brands
         
-    def _get_items_for_brand(self, brand, session, insert):
+    def _get_items_for_brand(self, brand, session, insert, thisweekonly = False):
         global hdr
         items = []
+        num_items = 0
         maxPageSize = 200
         articlesURL = "https://api.zalando.com/articles?pageSize="+str(maxPageSize)+"&brand=" + str(brand.key)
+        if thisweekonly is True:
+            articlesURL += '&activationDate=thisWeek'
         
         olog.log("ZalandoTracker._get_items_for_brand >>> Get articles <b>"+articlesURL+"</b>", 'debug')
 
@@ -152,6 +156,7 @@ class ZalandoTracker(Tracker):
                                         session.flush()
                                         itemid = i.id
                                         olog.log("ZalandoTracker._get_items_for_brand >>> Inserted item <b>"+str(i)+"</b> with id <b>" + str(itemid) + "</b>", "warning")
+                                        num_items += 1 
                                         for imageurl in item['images']:
                                             ii = session.query(orm.ItemImage).filter_by(itemid=itemid).filter_by(imageurl=imageurl).first()
                                             if ii is None:
@@ -180,7 +185,7 @@ class ZalandoTracker(Tracker):
         except:
             pass # Brand URL does not work
         
-        return items
+        return num_items
     
     def _get_item(self, brand, itemid):
         global hdr
@@ -211,4 +216,21 @@ class ZalandoTracker(Tracker):
         except:
             olog.log("ZalandoTracker._get_item >>>> Error for <b>"+itemURL+"</b>", 'error')
             return False
+    
+    
+    def _get_new_items(self, session):
+        tot_num_items = 0
+        start = datetime.now()
+        for storebrand in self._brands:
+            num_items = self._get_items_for_brand(storebrand[0], session, insert=True, thisweekonly=True)
+            tot_num_items += num_items
+        end = datetime.now()
+        olog.log("ZalandoTracker._get_new_items < Added <b>"+str(tot_num_items)+"</b> new items in "+ str(end-start) +"!", 'info')
+
+            
         
+            
+    
+    
+    
+    

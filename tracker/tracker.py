@@ -35,16 +35,18 @@ appName =   "Outfitter"
 
 class Tracker(object):
 
-    def __init__(self, store):
+    def __init__(self, store, session):
         self._store = store
         self._storeid = self._get_store_id()
         self._brands = None
         self._items = {}
-        # self._set_data()
+        self._session = session
+        self._set_data()
         
-    def set_data(self):
+        
+    def _set_data(self):
         try:
-            self._brands = self._get_brands()
+            self._brands = self._get_brands(self._session)
         except ValueError:
             print "Could not get data"
     
