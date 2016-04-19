@@ -118,7 +118,7 @@ class BijenkorfTracker(Tracker):
     def _get_items_for_brand(self, brand, session, insert, thisweekonly = False):
         global hdr
         items = []
-        
+        num_items = 0
         date = time.strftime('%Y-%m-%d')
         olog.log("BijenkorfTracker._set_items_for_brand >>> Get articles <b>"+brand.url+"</b>", 'debug')
         
@@ -142,29 +142,30 @@ class BijenkorfTracker(Tracker):
                         session.add(i)
                         session.flush()
                         itemid = i.id
+                        num_items += 1
+                        
+                        for imageurl in item['images']:
+                            ii = session.query(orm.ItemImage).filter_by(itemid=itemid).filter_by(imageurl=imageurl).first()
+                            if ii is not None:
+                                olog.log("BijenkorfTracker._set_items_for_brand <<<< <b>"+str(ii)+"</b> already in database</b>", "info")
+                            else:
+                                ii = orm.ItemImage(itemid, imageurl)
+                                olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted image <b>"+str(ii)+"</b>", "warning")
+                                session.add(ii)
+                        
+                        ip = session.query(orm.ItemPrice).filter_by(itemid=itemid).filter_by(checkdate=date).first()
+                        if ip is not None:
+                            olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(ip)+"</b> already in database</b>", "info")
+                        else:
+                            ip = orm.ItemPrice(itemid, item['price'], item['currency'], date)
+                            olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted price <b>"+str(ip)+"</b>", "warning")
+                            session.add(ip)       
                 else:
                     olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(i)+"</b> already in database</b>", "info")
                     itemid = i.id
                 #endif i is None
                 
-                for imageurl in item['images']:
-                    ii = session.query(orm.ItemImage).filter_by(itemid=itemid).filter_by(imageurl=imageurl).first()
-                    if ii is not None:
-                        olog.log("BijenkorfTracker._set_items_for_brand <<<< <b>"+str(ii)+"</b> already in database</b>", "info")
-                    else:
-                        ii = orm.ItemImage(itemid, imageurl)
-                        olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted image <b>"+str(ii)+"</b>", "warning")
-                        if insert is True:     
-                            session.add(ii)
-                
-                ip = session.query(orm.ItemPrice).filter_by(itemid=itemid).filter_by(checkdate=date).first()
-                if ip is not None:
-                    olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(ip)+"</b> already in database</b>", "info")
-                else:
-                    ip = orm.ItemPrice(itemid, item['price'], item['currency'], date)
-                    olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted price <b>"+str(ip)+"</b>", "warning")
-                    if insert is True:
-                        session.add(ip)                       
+                                
             
                 items.append(i)
             #endfor it in items_data 
@@ -188,29 +189,30 @@ class BijenkorfTracker(Tracker):
                                 session.add(i)
                                 session.flush()
                                 itemid = i.id
+                                num_items += 1
+                            for imageurl in item['images']:
+                                ii = session.query(orm.ItemImage).filter_by(itemid=itemid).filter_by(imageurl=imageurl).first()
+                                if ii is not None:
+                                    olog.log("BijenkorfTracker._set_items_for_brand <<<< <b>"+str(ii)+"</b> already in database</b>", "info")
+                                else:
+                                    ii = orm.ItemImage(itemid, imageurl)
+                                    olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted image <b>"+str(ii)+"</b>", "warning")
+                                    if insert is True:     
+                                        session.add(ii)
+                            
+                            ip = session.query(orm.ItemPrice).filter_by(itemid=itemid).filter_by(checkdate=date).first()
+                            if ip is not None:
+                                olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(ip)+"</b> already in database</b>", "info")
+                            else:
+                                ip = orm.ItemPrice(itemid, item['price'], item['currency'], date)
+                                olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted price <b>"+str(ip)+"</b>", "warning")
+                                if insert is True:
+                                    session.add(ip) 
                         else:
                             olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(i)+"</b> already in database</b>", "info")
                             itemid = i.id
                         #endif i is None
-                        
-                        for imageurl in item['images']:
-                            ii = session.query(orm.ItemImage).filter_by(itemid=itemid).filter_by(imageurl=imageurl).first()
-                            if ii is not None:
-                                olog.log("BijenkorfTracker._set_items_for_brand <<<< <b>"+str(ii)+"</b> already in database</b>", "info")
-                            else:
-                                ii = orm.ItemImage(itemid, imageurl)
-                                olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted image <b>"+str(ii)+"</b>", "warning")
-                                if insert is True:     
-                                    session.add(ii)
-                        
-                        ip = session.query(orm.ItemPrice).filter_by(itemid=itemid).filter_by(checkdate=date).first()
-                        if ip is not None:
-                            olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(ip)+"</b> already in database</b>", "info")
-                        else:
-                            ip = orm.ItemPrice(itemid, item['price'], item['currency'], date)
-                            olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted price <b>"+str(ip)+"</b>", "warning")
-                            if insert is True:
-                                session.add(ip)                       
+                                              
                     
                         items.append(i)
                     #endfor it in items_data 
@@ -220,7 +222,7 @@ class BijenkorfTracker(Tracker):
         except:
             olog.log("BijenkorfTracker._set_items_for_brand <<< Error opening URL", 'error')
             
-        return items
+        return num_items
         
     def _get_item(self, brand, url):
         global hdr

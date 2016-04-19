@@ -1,46 +1,45 @@
 #!/usr/bin/env python
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Date, Boolean, Float
+from sqlalchemy import create_engine, Column, Integer, String, Date, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import mapper, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 db = create_engine('mysql://outfitter:6qufMLA2BxmXeqe8@localhost/outfitter', echo=False)
 Base = declarative_base(db)
 
 def loadSession():
-    """"""
+    """ Load the session """
     metadata = Base.metadata
     Session = sessionmaker(bind=db)
     session = Session()
     return session
 
 class Brand(Base):
-    """"""
+    """ Database model of Brand """
     __tablename__ = 'brands'
     __table_args__ = {'autoload':True}
-    id = Column('id', Integer, primary_key=True)
+    index = Column('id', Integer, primary_key=True)
     name = Column('name', String(150))
     logourl = Column('logourl', String(200), nullable=True)
     logolargeurl = Column('logolargeurl', String(200), nullable=True)
     uuid = Column('uuid', String(50))
-    
+
     def __init__(self, name, logourl, logolargeurl, uuid):
         self.name = unicode(name)
         self.logourl = logourl
         self.logolargeurl = logolargeurl
         self.uuid = uuid
-        
+
     def __repr__(self):
-        return """<Brand(name='%s',logourl='%s',logolargeurl='%s')>""" % (
-                self.name, self.logourl, self.logolargeurl)
-    
+        return """<Brand(id='%s', name='%s')>""" % (self.index, self.name)
+
     def insert(self):
         print "Inserting", self
 
 class Item(Base):
-    """"""
+    """ Database model of Item """
     __tablename__ = 'items'
     __table_args__ = {'autoload':True}
-    id = Column('id', Integer, primary_key=True)
+    index = Column('id', Integer, primary_key=True)
     storeid = Column('storeid', Integer)
     itemid = Column('itemid', String(50))
     brandid = Column('brandid', Integer)
@@ -50,24 +49,22 @@ class Item(Base):
     category = Column('category', String(200))
     gender = Column('gender', String(20))
     uuid = Column('uuid', String(50))
-    
-    def __init__(self, storeid, itemid, brandid, link, color, title, category, gender, uuid):
-        self.storeid = int(storeid)
-        self.itemid = itemid
-        self.brandid = int(brandid)
-        self.link = link
-        self.color = color
-        self.title = title
-        self.category = category
-        self.gender = gender
-        self.uuid = uuid
+
+    def __init__(self, **kwargs):
+        valid_keys = ["storeid", "itemid", "brandid",
+                      "link", "color", "title",
+                      "category", "gender", "uuid"]
+        for key in valid_keys:
+            self.__dict__[key] = kwargs.get(key)
         
     def __repr__(self):
-        return "<Product(storeid='%d', itemid='%s', brandid='%d', link='%s', color='%s', title='%s', category='%s', gender='%s', uuid='%s')>" % (
-                self.storeid, self.itemid, self.brandid, self.link, self.color, self.title, self.category, self.gender, self.uuid)
+        return self.title + " [" +self.link+ "]"
+    
+    def __str__(self):
+        return self.title + " [" +self.link+ "]"
 
 class ItemImage(Base):
-    """"""
+    """ Database model of ItemImage """
     __tablename__ = "itemimages"
     id = Column('id', Integer, primary_key=True)
     itemid = Column('itemid', Integer)
@@ -78,20 +75,20 @@ class ItemImage(Base):
         self.itemid = itemid
         self.imageurl = imageurl
         self.localurl = localurl
-        
+
     def __repr__(self):
         return "<ItemImage(itemid='%d', imageurl='%s')>" % (
                 self.itemid, self.imageurl)
 
 class ItemPrice(Base):
-    """"""
+    """ Database model of ItemPrice """
     __tablename__ = "itemprices"
     id = Column('id', Integer, primary_key=True)
     itemid = Column('itemid', Integer)
     currency = Column('currency', String(10))
     checkdate = Column('checkdate', Date)
     price = Column('price', Float(255))
-    
+
     def __init__(self, itemid, price, currency, date):
         self.itemid = itemid
         self.price = price
@@ -99,12 +96,11 @@ class ItemPrice(Base):
         self.checkdate = date
 
     def __repr__(self):
-        return "<ItemPrice(itemid='%d', price='%s', currency='%s', date='%s')>" % (
+       return "<ItemPrice(itemid='%d', price='%s %s', date='%s')>" % (
                 self.itemid, self.price, self.currency, self.checkdate)
 
-
 class Notification(Base):
-    """"""
+    """ Database model of Notification """
     __tablename__ = "notifications"
     id = Column('id', Integer, primary_key=True)
     userid = Column('userid', Integer)
@@ -120,12 +116,13 @@ class Notification(Base):
         self.createdate = createdate
 
     def __repr__(self):
-        return "<Notification(userid='%d', message='%s', read='%s', date='%s')>" % (
-                self.userid, self.message, self.read, self.createdate)
+        return """
+                <Notification(userid='%d', message='%s', read='%s', date='%s')>
+               """ % (self.userid, self.message, self.read, self.createdate)
 
 
 class Product(Base):
-    """"""
+    """ Database model of Product """
     __tablename__ = 'products'
     __table_args__ = {'autoload':True}
     id = Column('id', Integer, primary_key=True)
@@ -137,7 +134,7 @@ class Product(Base):
     title = Column('title', String(200))
     category = Column('category', String(200))
     uuid = Column('uuid', String(50))
-    
+
     def __init__(self, storeid, itemid, brand, link, color, title, category):
         self.storeid = storeid
         self.itemid = itemid
@@ -146,37 +143,36 @@ class Product(Base):
         self.color = color
         self.title = title
         self.category = category
-        
+
     def __repr__(self):
         return "<Product(storeid='%d', itemid='%s', brand='%s', link='%s', color='%s', title='%s', category='%s', uuid='%s')>" % (
                 self.storeid, self.itemid, self.brand, self.link, self.color, self.title, self.category, self.uuid)
-                
+
 class ProductImage(Base):
-    """"""
+    """ Database model of ProductImage """
     __tablename__ = "productimages"
     id = Column('id', Integer, primary_key=True)
     productid = Column('productid', Integer)
     imageurl = Column('imageurl', String(300))
     localurl = Column('localurl', String(300))
 
-    def __init__(self, productid, imageurl):
+    def __init__(self, productid, imageurl, localurl=None):
         self.productid = productid
         self.imageurl = imageurl
         self.localurl = localurl
-        
+
     def __repr__(self):
         return "<ProductImage(productid='%d', imageurl='%s')>" % (
                 self.productid, self.imageurl)
 
 class ProductPrice(Base):
-    """"""
+    """ Database model of ProductPrice """
     __tablename__ = "productprices"
     id = Column('id', Integer, primary_key=True)
     productid = Column('productid', Integer)
     currency = Column('currency', String(10))
     checkdate = Column('checkdate', Date)
     price = Column('price', Float(255))
-    
 
     def __init__(self, productid, price, currency, date):
         self.productid = productid
@@ -189,7 +185,7 @@ class ProductPrice(Base):
                 self.productid, self.price, self.currency, self.checkdate)
 
 class Outfit(Base):
-    """"""
+    """ Database model of Outfit """
     __tablename__ = "outfits"
     id = Column('id', Integer, primary_key=True)
     description = Column('description', String(200))
@@ -205,13 +201,13 @@ class Outfit(Base):
                 self.id, self.description, self.userid)
 
 class OutfitProduct(Base):
-    """"""
+    """ Database model of OutfitProduct """
     __tablename__ = "outfitproducts"
     id = Column('id', Integer, primary_key=True)
     productid = Column('productid', Integer)
     outfitid = Column('outfitid', Integer)
 
-    def __init__(self, productid, price, date):
+    def __init__(self, outfitid, productid):
         self.outfitid = outfitid
         self.productid = productid
 
@@ -220,12 +216,12 @@ class OutfitProduct(Base):
                 self.outfitid, self.productid)
 
 class Store(Base):
-    """"""
+    """ Database model of Store """
     __tablename__ = 'stores'
     __table_args__ = {'autoload':True}
     id = Column('id', Integer, primary_key=True)
     name = Column('name', String(50))
-    
+
     def __init__(self, name):
         self.name = name
 
@@ -234,9 +230,9 @@ class Store(Base):
                 self.name)
 
 class StoreBrand(Base):
-    """"""
+    """ Database model of StoreBrand """
     __tablename__ = "storebrands"
-    __table_args__ = {'autoload':True}
+    __table_args__ = {'autoload': True}
     id = Column('id', Integer, primary_key=True)
     key = Column('key', String(50))
     storeid = Column('storeid', Integer)
@@ -244,26 +240,30 @@ class StoreBrand(Base):
     gender = Column('gender', String(10))
     url = Column('url', String(200))
 
-    def __init__(self, key, storeid, brandid, gender, url):
+    def __init__(self, key, storeid, brandid, gender, url, uuid):
         self.key = key
         self.storeid = storeid
         self.brandid = brandid
         self.gender = gender
         self.url = url
+        self.uuid = uuid
 
     def __repr__(self):
-        return "<StoreBrand(storeid='%d', key='%s', brandid='%d'. url='%s', gender='%s')>" % (
-                self.storeid, self.key, self.brandid, self.url, self.gender)
+        return "<StoreBrand(storeid='%d', key='%s', brandid='%d'. url='%s')>" % (
+                self.storeid, self.key, self.brandid, self.url)
 
 class User(Base):
-    """"""
+    """ Database model of User """
     __tablename__ = 'users'
     __table_args__ = {'autoload':True}
     id = Column('id', Integer, primary_key=True)
     name = Column('username', String(50))
+    
+    def __init__(self, name):
+        self.name = name
 
 class UserProduct(Base):
-    """"""
+    """ Database model of UserProduct """
     __tablename__ = "userproducts"
     id = Column('id', Integer, primary_key=True)
     userid = Column('userid', Integer)
@@ -278,7 +278,7 @@ class UserProduct(Base):
                 self.userid, self.productid)
 
 class Wishlist(Base):
-    """" Model of the wishlists table """
+    """" Database model of Wishlist """
     __tablename__ = 'wishlists'
     __table_args__ = {'autoload':True}
     id = Column('id', Integer, primary_key=True)
