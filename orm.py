@@ -219,7 +219,7 @@ class Store(Base):
     """ Database model of Store """
     __tablename__ = 'stores'
     __table_args__ = {'autoload':True}
-    id = Column('id', Integer, primary_key=True)
+    index = Column('id', Integer, primary_key=True)
     name = Column('name', String(50))
 
     def __init__(self, name):
@@ -233,7 +233,7 @@ class StoreBrand(Base):
     """ Database model of StoreBrand """
     __tablename__ = "storebrands"
     __table_args__ = {'autoload': True}
-    id = Column('id', Integer, primary_key=True)
+    indexd = Column('id', Integer, primary_key=True)
     key = Column('key', String(50))
     storeid = Column('storeid', Integer)
     brandid = Column('brandid', Integer)

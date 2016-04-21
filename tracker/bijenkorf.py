@@ -7,6 +7,7 @@
 # Example:          
 #
 # History:          2016-02-25 - JJ     Creation of the file
+#                   2016-04-19 - JJ     Refactor
 #
 ################################################################################
 
@@ -16,6 +17,7 @@
 from tracker import Tracker
 import orm, olog
 import json
+import logging
 import lxml.html
 import re, time
 import shortuuid
@@ -30,9 +32,22 @@ from selenium import webdriver
 ################################################################################
 # Definitions
 ################################################################################
-author =    "JJ"
-appName =   "Outfitter"
-hdr = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729); nl-NL'}
+__author__ = "Jitse-Jan van Waterschoot"
+__copyright__ = "Copyright 2015-2016"
+__credits__ = ["JItse-Jan van Waterschoot"]
+__license__ = "GPL"
+__version__ = "1.0.0"
+__maintainer__ = "Jitse-Jan van Waterschoot"
+__email__ = "mail@jitsejan.nl"
+__status__ = "Production"
+HEADER = {'Accept-Language': 'nl-NL',
+       'User-Agent': """Mozilla/5.0 (Windows; U;
+                                    Windows NT 6.1;
+                                    nl-NL;
+                                    rv:1.9.1.5)
+                       Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729);
+                       nl-NL"""}
+NUM_ITEMS = 0
 ################################################################################
 # Functions
 ################################################################################
@@ -42,191 +57,112 @@ hdr = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.5
 ################################################################################
 
 class BijenkorfTracker(Tracker):
-
+    """ Defines the BijenkorfTracker class """
     def __init__(self, *args, **kwargs):
+        """ Initialize the BijenkorfTracker """
         super(BijenkorfTracker,self).__init__('Bijenkorf', *args, **kwargs)
 
-    #############################################################################
-    # Function:         _get_brands
-    # Input:            
-    # Output:           
-    # Goal:             
-    # Targets:           <ul class="search-list" data-facet-id="2">
-    #                      <li>
-    #                           <a href="/HomeFh.aspx?Brand=4&amp;multigender=2" class="eatrckr" data-ea="Marques - Adidas Originals"><span>Adidas Originals</span></a>
-    #                       </li>
     def _set_brands(self, session, insert):
-        global hdr
+        """ Sets the brands for the tracker """
+        logger = logging.getLogger('outfitter')
         brands = []
+        urls = {}
         urls['male']  = "http://www.debijenkorf.nl/merken/herenmode"
         urls['female'] = "http://www.debijenkorf.nl/merken/damesmode"
-        
-        for gender, url in enumerate(urls):
-            olog.log("BijenkorfTracker._set_brands > Calling <b>"+url+"</b>", 'info')
-            
-            req = urllib2.Request(url, headers=hdr)
+        for index, gender in enumerate(urls):
+            logger.debug(">> Calling "+urls[gender])
+            req = urllib2.Request(urls[gender], headers=HEADER)
             data = urllib2.urlopen(req).read()
             tree = lxml.html.fromstring(data)
-            brand_data = tree.cssselect('div[class*=\"brands-block-list\"] ul[class*=\"col\"] li a')
-            for b in brand_data:
-                brand = {'key' : None, 'name' : None, 'logoUrl' : None, 'logoLargeUrl' : None, 'shopUrl' : None}
-                burl = 'http://www.debijenkorf.nl'+b.attrib['href']
-                breq = urllib2.Request(burl, headers=hdr)
-                bdata = urllib2.urlopen(breq).read()
-                btree = lxml.html.fromstring(bdata)             
-                brand['name'] = unicode(b.text_content().title()).encode('ascii', 'xmlcharrefreplace')
-                try: # More than 24 items per page
-                    br_data = btree.cssselect('a[class*=\"dbk-productlist-summary--link\"]')
-                    brand['shopUrl'] = br_data[1].attrib['data-href']
-                except: # Less than 24 items for this brand
-                    brand['shopUrl'] = burl
-    
-                brand_in_db = session.query(orm.Brand).filter_by(name=unicode(brand['name'])).first()
-                if brand_in_db is None:
-                    uuid = str(shortuuid.uuid(brand['name']))
-                    br = orm.Brand(brand['name'], brand['logoUrl'], brand['logoLargeUrl'], uuid)
-                    olog.log("BijenkorfTracker._set_brands <<< Inserted brand <b>"+str(br)+"</b> with id <b>" + str(br.id) + "</b>", "warning")
-                    if insert is True:
-                        session.add(br)
-                        session.flush()
-                        brandid = br.id
-                else:
-                    br = brand_in_db
-                    olog.log("BijenkorfTracker._set_brands <<< Brand <b>"+str(brand_in_db)+"</b> already in database", "info")                
-                    brandid = brand_in_db.id
-    
-                  
-                storebrand_in_db = session.query(orm.StoreBrand).filter_by(storeid=unicode(self.storeid)).filter_by(brandid=brandid).filter_by(gender=gender).first()
-                
-                if storebrand_in_db is None:
-                    storebrand = {'key': None, 'storeid' : None, 'brandid' : None, 'gender': None, 'url' : None}
-                    sb = orm.StoreBrand(brand['key'], self.storeid, brandid, gender, brand['shopUrl'])
-                    olog.log("BijenkorfTracker._set_brands <<< Inserted <b>"+str(sb)+"</b>", "warning")
-                    if insert is True:
-                        session.add(sb)
-                        session.flush()
-                else:
-                    olog.log("BijenkorfTracker._set_brands <<< <b>"+str(storebrand_in_db)+"</b> already in database", "info")
-                brands.append(br)
-            # endfor brand_data
+            target = 'div[class*=\"brands-block-list\"] ul[class*=\"col\"] li a'
+            brand_data = tree.cssselect(target)
+            for html_data in brand_data:
+                brand = self._get_brand_data(html_data)
+                brand['gender'] = gender
+                orm_brand = self._insert_brand(session,
+                                               brand,
+                                               insert)
+                brands.append(orm_brand)
+            # endfor html_data
         # endfor enumerate(urls)
-        
-        session.commit()
-
+        logger.info("< Found "+str(len(brands))+ " brands")
         return brands
 
-    def _get_items_for_brand(self, brand, session, insert, thisweekonly = False):
-        global hdr
+    def _get_brand_data(self, html_data):
+        """ Retrieves brand info from HTML data """
+        brand = {}
+        brand['key'] = None
+        brand['name'] = None
+        brand['logoUrl'] = None
+        brand['logoLargeUrl'] = None
+        brand['shopUrl'] = None
+        burl = 'http://www.debijenkorf.nl'+html_data.attrib['href']
+        breq = urllib2.Request(burl, headers=HEADER)
+        bdata = urllib2.urlopen(breq).read()
+        btree = lxml.html.fromstring(bdata)             
+        brand['name'] = self._encode_string(html_data.text_content().title())
+        try: # More than 24 items per page
+            atarget = 'a[class*=\"dbk-productlist-summary--link\"]'
+            br_data = btree.cssselect(atarget)
+            brand['shopUrl'] = br_data[1].attrib['data-href']
+        except: # Less than 24 items for this brand
+            brand['shopUrl'] = burl
+        return brand
+
+    def _get_items_for_brand(self, brand, session, insert, thisweekonly=False):
+        """ Returns the items for a specific brand """
+        logger = logging.getLogger('outfitter')
         items = []
-        num_items = 0
-        date = time.strftime('%Y-%m-%d')
-        olog.log("BijenkorfTracker._set_items_for_brand >>> Get articles <b>"+brand.url+"</b>", 'debug')
-        
+        logger.debug(">>> Get articles "+brand.url)
         if thisweekonly is True:
             brand.url += '%7d%2fnieuw_nonfashion%3E%7bnet20binnen'
-        
         try:
-            req = urllib2.Request(brand.url, headers=hdr)
+            req = urllib2.Request(brand.url, headers=HEADER)
             data = urllib2.urlopen(req).read()
             tree = lxml.html.fromstring(data)
-        
-            items_data = tree.cssselect('li[class*=\"dbk-productlist-thumbnail\"] a[itemprop*=\"url\"]')
-            for it in items_data:
-                iid = it.attrib['href'].split('-')[-1]
-                i = session.query(orm.Item).filter_by(itemid=iid).filter_by(storeid=self.storeid).first()
-                item = self._get_item(brand, it.attrib['href'])
-                if i is None:
-                    i = orm.Item(item['storeid'], item['itemid'], item['brandid'], item['link'], item['color'], item['title'], item['category'], item['gender'], item['uuid'])
-                    olog.log("BijenkorfTracker._set_items_for_brand <<< Inserted item <b>"+str(i)+"</b>>", "warning")
-                    if insert is True:
-                        session.add(i)
-                        session.flush()
-                        itemid = i.id
-                        num_items += 1
-                        
-                        for imageurl in item['images']:
-                            ii = session.query(orm.ItemImage).filter_by(itemid=itemid).filter_by(imageurl=imageurl).first()
-                            if ii is not None:
-                                olog.log("BijenkorfTracker._set_items_for_brand <<<< <b>"+str(ii)+"</b> already in database</b>", "info")
-                            else:
-                                ii = orm.ItemImage(itemid, imageurl)
-                                olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted image <b>"+str(ii)+"</b>", "warning")
-                                session.add(ii)
-                        
-                        ip = session.query(orm.ItemPrice).filter_by(itemid=itemid).filter_by(checkdate=date).first()
-                        if ip is not None:
-                            olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(ip)+"</b> already in database</b>", "info")
-                        else:
-                            ip = orm.ItemPrice(itemid, item['price'], item['currency'], date)
-                            olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted price <b>"+str(ip)+"</b>", "warning")
-                            session.add(ip)       
-                else:
-                    olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(i)+"</b> already in database</b>", "info")
-                    itemid = i.id
-                #endif i is None
-                
-                                
-            
-                items.append(i)
-            #endfor it in items_data 
-    
+            sel = 'li[class*=\"dbk-productlist-thumbnail\"] a[itemprop*=\"url\"]'
+            items_data = tree.cssselect(sel)
+            for article in items_data:
+                if article is not None:
+                    itemid = article.attrib['href'].split('-')[-1]
+                    item = self._get_item(itemid)
+                    if item is None:
+                        item_data = self._get_item_data(itemid)
+                        item = self._insert_item(session, item_data, insert)
+                    else:
+                        logger.warning("<<<< "+str(item)+" found in DB")
+                    items.append(item)        
+       
             # Find pagination
-            pagination_data = tree.cssselect('ul[class*=\"dbk-pagination\"] li a')
+            pagesel = 'ul[class*=\"dbk-pagination\"] li a'
+            pagination_data = tree.cssselect(pagesel)
             if len(pagination_data) > 1:
                 for page in pagination_data[1:-1]:
-                    sreq = urllib2.Request(page.attrib['data-href'], headers=hdr)
+                    sreq = urllib2.Request(page.attrib['data-href'], headers=HEADER)
                     sdata = urllib2.urlopen(sreq).read()
                     stree = lxml.html.fromstring(sdata)
+                    logger.debug(">>> Get articles for page "+page.attrib['data-href'])
                     items_data = stree.cssselect('li[class*=\"dbk-productlist-thumbnail\"] a[itemprop*=\"url\"]')
-                    for it in items_data:
-                        iid = it.attrib['href'].split('-')[-1]
-                        i = session.query(orm.Item).filter_by(itemid=iid).filter_by(storeid=self.storeid).first()
-                        item = self._get_item(brand, it.attrib['href'])
-                        if i is None:
-                            i = orm.Item(item['storeid'], item['itemid'], item['brandid'], item['link'], item['color'], item['title'], item['category'], item['gender'], item['uuid'])
-                            olog.log("BijenkorfTracker._set_items_for_brand <<< Inserted item <b>"+str(i)+"</b>>", "warning")
-                            if insert is True:
-                                session.add(i)
-                                session.flush()
-                                itemid = i.id
-                                num_items += 1
-                            for imageurl in item['images']:
-                                ii = session.query(orm.ItemImage).filter_by(itemid=itemid).filter_by(imageurl=imageurl).first()
-                                if ii is not None:
-                                    olog.log("BijenkorfTracker._set_items_for_brand <<<< <b>"+str(ii)+"</b> already in database</b>", "info")
-                                else:
-                                    ii = orm.ItemImage(itemid, imageurl)
-                                    olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted image <b>"+str(ii)+"</b>", "warning")
-                                    if insert is True:     
-                                        session.add(ii)
-                            
-                            ip = session.query(orm.ItemPrice).filter_by(itemid=itemid).filter_by(checkdate=date).first()
-                            if ip is not None:
-                                olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(ip)+"</b> already in database</b>", "info")
+                    for article in items_data:
+                        if article is not None:
+                            itemid = article.attrib['href'].split('-')[-1]
+                            item = self._get_item(itemid)
+                            if item is None:
+                                item_data = self._get_item_data(itemid)
+                                item = self._insert_item(session,
+                                                         item_data,
+                                                         insert)
                             else:
-                                ip = orm.ItemPrice(itemid, item['price'], item['currency'], date)
-                                olog.log("BijenkorfTracker._set_items_for_brand <<<< Inserted price <b>"+str(ip)+"</b>", "warning")
-                                if insert is True:
-                                    session.add(ip) 
-                        else:
-                            olog.log("BijenkorfTracker._set_items_for_brand <<< <b>"+str(i)+"</b> already in database</b>", "info")
-                            itemid = i.id
-                        #endif i is None
-                                              
-                    
-                        items.append(i)
-                    #endfor it in items_data 
-                #endfor page in pagination_data
-            if insert is True:
-                session.commit()
+                                logger.warning("<<<< "+str(item)+" found in DB")
+                            items.append(item)    
+
         except:
-            olog.log("BijenkorfTracker._set_items_for_brand <<< Error opening URL", 'error')
-            
-        return num_items
+            logger.error("<<< Opening URL failed")    
+        return NUM_ITEMS
         
-    def _get_item(self, brand, url):
-        global hdr
-        item = {'storeid' : None, 'itemid' : None, 'brandid' : None, 'link' : None, 'color' : None, 'title' : None, 'category' : None, 'gender' : None}
+    def _get_item_data(self, brand, url):
+        """ Gets the item for a given ... """
+        item = {}
         item['storeid'] = self.storeid
         if 'debijenkorf.nl' not in url:
             url = 'http://debijenkorf.nl'+url
@@ -235,24 +171,24 @@ class BijenkorfTracker(Tracker):
         item['gender'] = brand.gender.title()
         item['itemid'] = item['link'].split('-')[-1]
         item['uuid'] = str(shortuuid.uuid(item['link']))
-        olog.log("BijenkorfTracker._get_item >> Calling <b>"+item['link']+"</b>", "debug")
-        req = urllib2.Request(item['link'], headers=hdr)
+        logger.debug(">>>> "+item['link'])
+        req = urllib2.Request(item['link'], headers=HEADER)
         idata = urllib2.urlopen(req).read()
         itree = lxml.html.fromstring(idata)
-        
         item['images'] = self._get_images(itree)
         item['price'] = self._get_price(idata)
         item['currency'] = self._get_currency(itree)
         item['color'] = self._get_color(itree)
         item['title'] = self._get_title(idata)
         item['category'] = self._get_category(idata)
-        
         return item
     
     def _get_images(self, itree):
+        """ Returns the images """
         images = []
         try:
-            image_data = itree.cssselect('img[data-dbk-target-selector*=\"main-image\"]')
+            selector = 'img[data-dbk-target-selector*=\"main-image\"]'
+            image_data = itree.cssselect(selector)
             for image in image_data:
                 try:
                     images.append(image.attrib['data-dbk-target-src'])
@@ -261,50 +197,61 @@ class BijenkorfTracker(Tracker):
             # Return the links to the images
             if len(images) < 1:
                 try:
-                    images.append(itree.cssselect('img[class*=\"main-image\"]')[0].attrib['src'])
+                    src = itree.cssselect('img[class*=\"main-image\"]')[0]
+                    images.append(src.attrib['src'])
                 except:
                     pass
         except:
             pass
         return images
-    
+
     def _get_price(self, idata):
+        """ Returns the price """
         try:
             return re.search('"price": "(.*)?"', idata).group(1)
         except:
             return ""
-    
+
     def _get_currency(self, itree):
+        """ Returns the currency """
         try:
-            return itree.cssselect('meta[itemprop*=\'priceCurrency\']')[0].attrib['content']
+            currency = itree.cssselect('meta[itemprop*=\'priceCurrency\']'[0])
+            return currency.attrib['content']
         except:
             return ""
-    
+
     def _get_color(self, itree):
+        """ Returns the color """
         try:
-            return unicode(itree.cssselect('span[itemprop*=\'color\']')[0].text_content()).encode('ascii', 'xmlcharrefreplace')
+            color = itree.cssselect('span[itemprop*=\'color\']')[0]
+            return self._encode_string(color.text_content())
         except:
             return ""
-        
+
     def _get_title(self, idata):
+        """ Returns the title """
         try:
             regexp = '"name": "(.*)?"'
             result = re.search(regexp, idata)
-            return unicode(result.group(1)).encode('ascii', 'xmlcharrefreplace')
+            return self._encode_string(result.group(1))
         except:
             return ""
     
-    def _get_category(self, idata):    
+    def _get_category(self, idata):
+        """ Returns the category """
         try:
-            return re.search('"category": "(.*)?"', idata).group(1).split('/')[-1]
+            result = re.search('"category": "(.*)?"', idata).group(1)
+            return result.split('/')[-1]
         except:
             return ""      
 
-    def _get_new_items(self, session):
-        tot_num_items = 0
-        start = datetime.now()
-        for storebrand in self._brands:
-            num_items = self._get_items_for_brand(storebrand[0], session, insert=True, thisweekonly=True)
-            tot_num_items += num_items
-        end = datetime.now()
-        olog.log("BijenkorfTracker._get_new_items < Added <b>"+str(tot_num_items)+"</b> new items in "+ str(end-start) +"!", 'info')
+    def _get_item_id(self, link):
+        """ Get the item ID for a given Zalando link """
+        req = urllib2.Request(link, headers=HEADER)
+        data = urllib2.urlopen(req).read()
+        regexp = '"masterSku" : "(.*?)",'
+        result = re.search(regexp, data)
+        if result:
+            return result.group(1)
+        else:
+            return False
