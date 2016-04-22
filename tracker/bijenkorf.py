@@ -125,14 +125,14 @@ class BijenkorfTracker(Tracker):
             for article in items_data:
                 if article is not None:
                     itemid = article.attrib['href'].split('-')[-1]
-                    item = self._get_item(itemid)
+                    item = self._get_item(brand, article.attrib['href'])
                     if item is None:
                         item_data = self._get_item_data(itemid)
                         item = self._insert_item(session, item_data, insert)
                     else:
                         logger.warning("<<<< "+str(item)+" found in DB")
-                    items.append(item)        
-       
+                    items.append(item)
+
             # Find pagination
             pagesel = 'ul[class*=\"dbk-pagination\"] li a'
             pagination_data = tree.cssselect(pagesel)

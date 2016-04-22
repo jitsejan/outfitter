@@ -43,7 +43,7 @@ class Item(Base):
     storeid = Column('storeid', Integer)
     itemid = Column('itemid', String(50))
     brandid = Column('brandid', Integer)
-    link = Column('link', String(200))
+    link = Column('link', String(300))
     color = Column('color', String(50))
     title = Column('title', String(200))
     category = Column('category', String(200))
@@ -233,7 +233,7 @@ class StoreBrand(Base):
     """ Database model of StoreBrand """
     __tablename__ = "storebrands"
     __table_args__ = {'autoload': True}
-    indexd = Column('id', Integer, primary_key=True)
+    index = Column('id', Integer, primary_key=True)
     key = Column('key', String(50))
     storeid = Column('storeid', Integer)
     brandid = Column('brandid', Integer)

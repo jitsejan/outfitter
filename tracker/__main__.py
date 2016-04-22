@@ -28,7 +28,7 @@ from argparse import ArgumentParser
 import logging
 import orm
 from outfitter.tracker import zalando
-from outfitter.tracker import bijenkorf
+from outfitter.tracker import asos, bijenkorf
 
 coloredlogs.install(level='DEBUG')
 
@@ -45,6 +45,8 @@ def get_tracker(session, store):
         tracker = zalando.ZalandoTracker(session)
     elif store == 'bijenkorf':
         tracker = bijenkorf.BijenkorfTracker(session)
+    elif store == 'asos':
+        tracker = asos.AsosTracker(session)
     else:
         logger.error('< Unknown store. Exiting')
         sys.exit()
@@ -56,7 +58,7 @@ def get_tracker(session, store):
 
 def main():
     """ Main function """
-    stores = ['zalando', 'bijenkorf']
+    stores = ['zalando', 'bijenkorf', 'asos']
     actions = ['brands', 'new', 'all', 'test']
     parser = ArgumentParser()
     parser.add_argument("-s", "--store", dest="store", default=None,
@@ -72,6 +74,8 @@ def main():
             tracker = zalando.ZalandoTracker(session)
         elif 'bijenkorf' in args.link:
             tracker = bijenkorf.BijenkorfTracker(session)
+        elif 'asos.' in args.link:
+            tracker = asos.AsosTracker(session)
         else:
             logger.error('Tracker not available')
             sys.exit()
@@ -83,7 +87,7 @@ def main():
             else:
                 logger.error("< No item found!")
         else:
-            logger.error('<Item ID not found')
+            logger.error('< Item ID not found')
             
     elif args.store is not None and args.action is not None:
         tracker = get_tracker(session, args.store)

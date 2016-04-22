@@ -188,13 +188,15 @@ class Tracker(object):
         """ Retrieves all the items """
         logger = logging.getLogger('outfitter')
         tot_num_items = 0
+        all_items = []
         start = datetime.now()
         for storebrand in self._brands:
-            num_items = self._get_items_for_brand(storebrand[0],
-                                                  session,
-                                                  insert=True,
-                                                  thisweekonly=False)
-            tot_num_items += num_items
+            items = self._get_items_for_brand(storebrand[0],
+                                              session,
+                                              insert=True,
+                                              thisweekonly=False)
+            all_items.append(items)
+            tot_num_items += len(items)
         end = datetime.now()
         diff = str(end-start)
         logger.debug("< Added "+str(tot_num_items)+" items in "+ diff +"!")
@@ -257,7 +259,7 @@ class Tracker(object):
         """ Inserts an item """
         global NUM_ITEMS
         logger = logging.getLogger('outfitter')
-        orm_item = self._get_item(item['id'])
+        orm_item = self._get_item(item['itemid'])
         if orm_item is None:
             if item is not False:
                 orm_item = orm.Item(storeid=item['storeid'],
@@ -278,7 +280,6 @@ class Tracker(object):
                     logger.info("<<<< Inserted "+str(orm_item))
                     self._insert_images(session, item, itemid, insert)
                     self._insert_price(session, item, itemid, insert)
-                    sys.exit()
                 else:
                     logger.debug("<<<< Should insert "+str(orm_item))
             #endif item is not False
