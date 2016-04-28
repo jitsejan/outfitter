@@ -83,9 +83,14 @@ def main():
         if itemid:
             item = tracker._get_item(itemid)
             if item:
-                logger.info("< Found " +str(item))
+                logger.info("< Found " +str(item.itemid)+ " in DB")
             else:
-                logger.error("< No item found!")
+                logger.warning("< No item found! Need to parse")
+                item = tracker._get_item_data(args.link)
+                if item:
+                    logger.info("< Found " +str(item)+ "")
+                else:
+                    logger.error("< No item found")
         else:
             logger.error('< Item ID not found')
             

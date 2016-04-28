@@ -24,6 +24,7 @@ import shortuuid
 import urllib2
 import lxml.etree
 import unidecode
+import sys
 from datetime import datetime
 
 from pyvirtualdisplay import Display
@@ -67,8 +68,8 @@ class BijenkorfTracker(Tracker):
         logger = logging.getLogger('outfitter')
         brands = []
         urls = {}
-        urls['male']  = "http://www.debijenkorf.nl/merken/herenmode"
         urls['female'] = "http://www.debijenkorf.nl/merken/damesmode"
+        urls['male']  = "http://www.debijenkorf.nl/merken/herenmode"
         for index, gender in enumerate(urls):
             logger.debug(">> Calling "+urls[gender])
             req = urllib2.Request(urls[gender], headers=HEADER)
@@ -78,11 +79,14 @@ class BijenkorfTracker(Tracker):
             brand_data = tree.cssselect(target)
             for html_data in brand_data:
                 brand = self._get_brand_data(html_data)
-                brand['gender'] = gender
-                orm_brand = self._insert_brand(session,
+                if brand is not False:
+                    brand['gender'] = gender
+                    orm_brand = self._insert_brand(session,
                                                brand,
                                                insert)
-                brands.append(orm_brand)
+                    brands.append(orm_brand)
+                else:
+                    logger.error("Error retrieving brand data")
             # endfor html_data
         # endfor enumerate(urls)
         logger.info("< Found "+str(len(brands))+ " brands")
@@ -90,6 +94,7 @@ class BijenkorfTracker(Tracker):
 
     def _get_brand_data(self, html_data):
         """ Retrieves brand info from HTML data """
+        logger = logging.getLogger('outfitter')
         brand = {}
         brand['key'] = None
         brand['name'] = None
@@ -97,18 +102,22 @@ class BijenkorfTracker(Tracker):
         brand['logoLargeUrl'] = None
         brand['shopUrl'] = None
         burl = 'http://www.debijenkorf.nl'+html_data.attrib['href']
+        logger.debug(">>> Calling "+burl)
         breq = urllib2.Request(burl, headers=HEADER)
-        bdata = urllib2.urlopen(breq).read()
-        btree = lxml.html.fromstring(bdata)             
-        brand['name'] = self._encode_string(html_data.text_content().title())
-        try: # More than 24 items per page
-            atarget = 'a[class*=\"dbk-productlist-summary--link\"]'
-            br_data = btree.cssselect(atarget)
-            brand['shopUrl'] = br_data[1].attrib['data-href']
-        except: # Less than 24 items for this brand
-            brand['shopUrl'] = burl
-        return brand
-
+        try:
+            bdata = urllib2.urlopen(breq).read()
+            btree = lxml.html.fromstring(bdata)             
+            brand['name'] = self._encode_string(html_data.text_content().title())
+            try: # More than 24 items per page
+                atarget = 'a[class*=\"dbk-productlist-summary--link\"]'
+                br_data = btree.cssselect(atarget)
+                brand['shopUrl'] = br_data[1].attrib['data-href']
+            except: # Less than 24 items for this brand
+                brand['shopUrl'] = burl
+            return brand
+        except:
+            return False
+        
     def _get_items_for_brand(self, brand, session, insert, thisweekonly=False):
         """ Returns the items for a specific brand """
         logger = logging.getLogger('outfitter')
@@ -120,61 +129,68 @@ class BijenkorfTracker(Tracker):
             req = urllib2.Request(brand.url, headers=HEADER)
             data = urllib2.urlopen(req).read()
             tree = lxml.html.fromstring(data)
-            sel = 'li[class*=\"dbk-productlist-thumbnail\"] a[itemprop*=\"url\"]'
-            items_data = tree.cssselect(sel)
-            for article in items_data:
-                if article is not None:
-                    itemid = article.attrib['href'].split('-')[-1]
-                    item = self._get_item(brand, article.attrib['href'])
-                    if item is None:
-                        item_data = self._get_item_data(itemid)
-                        item = self._insert_item(session, item_data, insert)
-                    else:
-                        logger.warning("<<<< "+str(item)+" found in DB")
-                    items.append(item)
-
-            # Find pagination
-            pagesel = 'ul[class*=\"dbk-pagination\"] li a'
-            pagination_data = tree.cssselect(pagesel)
-            if len(pagination_data) > 1:
-                for page in pagination_data[1:-1]:
-                    sreq = urllib2.Request(page.attrib['data-href'], headers=HEADER)
-                    sdata = urllib2.urlopen(sreq).read()
-                    stree = lxml.html.fromstring(sdata)
-                    logger.debug(">>> Get articles for page "+page.attrib['data-href'])
-                    items_data = stree.cssselect('li[class*=\"dbk-productlist-thumbnail\"] a[itemprop*=\"url\"]')
-                    for article in items_data:
-                        if article is not None:
-                            itemid = article.attrib['href'].split('-')[-1]
-                            item = self._get_item(itemid)
-                            if item is None:
-                                item_data = self._get_item_data(itemid)
-                                item = self._insert_item(session,
-                                                         item_data,
-                                                         insert)
-                            else:
-                                logger.warning("<<<< "+str(item)+" found in DB")
-                            items.append(item)    
-
         except:
-            logger.error("<<< Opening URL failed")    
+            return False
+        sel = 'li[class*=\"dbk-productlist-thumbnail\"] a[itemprop*=\"url\"]'
+        items_data = tree.cssselect(sel)
+        for article in items_data:
+            if article is not None:
+                itemid = article.attrib['href'].split('-')[-1]
+                item = self._get_item(itemid)
+                if item is None:
+                    url = article.attrib['href']
+                    item_data = self._get_item_data(url)
+                    item = self._insert_item(session, item_data, insert)
+                else:
+                    logger.warning("<<<< "+str(item)+" found in DB")
+                items.append(item)
+                sys.exit()
+
+        # Find pagination
+        pagesel = 'ul[class*=\"dbk-pagination\"] li a'
+        pagination_data = tree.cssselect(pagesel)
+        if len(pagination_data) > 1:
+            for page in pagination_data[1:-1]:
+                sreq = urllib2.Request(page.attrib['data-href'], headers=HEADER)
+                sdata = urllib2.urlopen(sreq).read()
+                stree = lxml.html.fromstring(sdata)
+                logger.debug(">>> Get articles for page "+page.attrib['data-href'])
+                items_data = stree.cssselect('li[class*=\"dbk-productlist-thumbnail\"] a[itemprop*=\"url\"]')
+                for article in items_data:
+                    if article is not None:
+                        url = article.attrib['href']
+                        itemid = url.split('-')[-1]
+                        item = self._get_item(itemid)
+                        if item is None:
+                            item_data = self._get_item_data(url)
+                            item = self._insert_item(session,
+                                                     item_data,
+                                                     insert)
+                        else:
+                            logger.warning("<<<< "+str(item)+" found in DB")
+                        items.append(item)    
+
+        # except:
+            # logger.error("<<< Opening URL failed")    
         return NUM_ITEMS
         
-    def _get_item_data(self, brand, url):
+    def _get_item_data(self, url):
         """ Gets the item for a given ... """
+        logger = logging.getLogger('outfitter')
         item = {}
         item['storeid'] = self.storeid
         if 'debijenkorf.nl' not in url:
             url = 'http://debijenkorf.nl'+url
         item['link'] = url
-        item['brandid'] = brand.brandid
-        item['gender'] = brand.gender.title()
         item['itemid'] = item['link'].split('-')[-1]
         item['uuid'] = str(shortuuid.uuid(item['link']))
         logger.debug(">>>> "+item['link'])
         req = urllib2.Request(item['link'], headers=HEADER)
         idata = urllib2.urlopen(req).read()
         itree = lxml.html.fromstring(idata)
+        brandname = self._get_brandname(idata)
+        item['brandid'] = self._get_brand_id(brandname)
+        item['gender'] = self._get_gender(idata)
         item['images'] = self._get_images(itree)
         item['price'] = self._get_price(idata)
         item['currency'] = self._get_currency(itree)
@@ -245,8 +261,31 @@ class BijenkorfTracker(Tracker):
         except:
             return ""      
 
+    def _get_brandname(self, idata):
+        """ Returns the brand """
+        try:
+            result = re.search('"brand": "(.*)?"', idata).group(1)
+            return result
+        except:
+            return ""      
+    
+    def _get_gender(self, idata):
+        """ Returns the gender """
+        try:
+            result = re.search('"breadcrumb" : "(.*)?"', idata).group(1)
+            if 'Dames' in result:
+                return 'Female'
+            elif 'Heren' in result:
+                return 'Male'
+            else:
+                return ""
+        except:
+            return ""      
+
     def _get_item_id(self, link):
-        """ Get the item ID for a given Zalando link """
+        """ Get the item ID for a given Bijenkorf link """
+        if 'http://' not in link:
+            link = 'http://'+link
         req = urllib2.Request(link, headers=HEADER)
         data = urllib2.urlopen(req).read()
         regexp = '"masterSku" : "(.*?)",'

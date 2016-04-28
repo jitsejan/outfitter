@@ -113,18 +113,21 @@ class ZalandoTracker(Tracker):
         req = urllib2.Request(articles_url, headers=HEADER)
         try:
             articles_json = json.loads(urllib2.urlopen(req).read())
-            total_elements = articles_json['totalElements']
-            logger.debug("<<< Number of items "+ str(total_elements))
-            if total_elements > 0:
-                for page in range(articles_json['totalPages']):
-                    article_url = articles_url+"&page="+str(page+1)+"&fields=id"
-                    logger.debug(">>>> Get articles per page " + article_url)
-                    article_jsn = json.loads(urllib.urlopen(article_url).read())
+        except:
+            return False
+        total_elements = articles_json['totalElements']
+        logger.debug("<<< Number of items "+ str(total_elements))
+        if total_elements > 0:
+            for page in range(articles_json['totalPages']):
+                article_url = articles_url+"&page="+str(page+1)+"&fields=id"
+                logger.debug(">>>> Get articles per page " + article_url)
+                article_jsn = json.loads(urllib.urlopen(article_url).read())
+                if 'content' in article_jsn.keys():
                     for article in article_jsn['content']:
                         if article is not None:
                             item = self._get_item(article['id'])
                             if item is None:
-                                item_data = _get_item_data(article['id'])
+                                item_data = self._get_item_data(link=None, itemid=article['id'])
                                 item = self._insert_item(session,
                                                          item_data,
                                                          insert)
@@ -133,20 +136,32 @@ class ZalandoTracker(Tracker):
                             items.append(item)
                         #endif article is not None
                     #endfor it in articleJson['content']
-                #endfor for page in range(pages)
-            #endif for totalElements > 0
-        except:
-            logger.error("<<< Opening URL failed")
+                else:
+                    logger.error("<<< JSON data invalid")
+                #endif content in keys
+            #endfor for page in range(pages)
+        #endif for totalElements > 0
+        # except:
+            # logger.error("<<< Opening URL failed")
         logger.debug("<<< Found "+str(NUM_ITEMS)+" items")
         return items
 
-    def _get_item_data(self, itemid):
-        """ Gets the item for a given itemid """
+    def _get_item_data(self, link, itemid=None):
+        """ Gets the item for a given link """
         logger = logging.getLogger('outfitter')
+        if link is not None:
+            itemid = self._get_item_id(link)
         item_url = "https://api.zalando.com/articles?articleID="+itemid
         logger.debug(">>>> "+item_url)
         req = urllib2.Request(item_url, headers=HEADER)
-        item_json = json.loads(urllib2.urlopen(req).read())['content'][0]
+        page_json = json.loads(urllib2.urlopen(req).read())
+        if 'content' in page_json.keys():
+            if len(page_json['content']) > 0:
+                item_json = page_json['content'][0]
+            else:
+                return False
+        else:
+            return False
         try:
             item = {}
             item['storeid'] = self.storeid

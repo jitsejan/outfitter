@@ -14,7 +14,7 @@
 ################################################################################
 __author__ = "Jitse-Jan van Waterschoot"
 __copyright__ = "Copyright 2015-2016"
-__credits__ = ["JItse-Jan van Waterschoot"]
+__credits__ = ["Jitse-Jan van Waterschoot"]
 __license__ = "GPL"
 __version__ = "1.0.0"
 __maintainer__ = "Jitse-Jan van Waterschoot"
@@ -102,11 +102,19 @@ class Tracker(object):
     def _get_brand_id(self, brandname):
         """ Get the ID for a given brandname """
         session = orm.loadSession()
+        brandname = self._encode_string(brandname)
         brand = session.query(orm.Brand)\
                              .filter(orm.Brand.name == brandname)\
                              .limit(1)\
                              .first()
         session.close()
+        if brand is None:
+            brand = {}
+            brand['logoUrl'] = None
+            brand['logoLargeUrl'] = None
+            brand['name'] = brandname
+            brand = self._insert_brand(session, brand, insert=True)
+            self._insert_storebrand(session, brand, insert=True)
         return brand.index
 
     def _get_storebrand(self, brandname, gender=None):
@@ -178,8 +186,9 @@ class Tracker(object):
                                                   session,
                                                   insert=True,
                                                   thisweekonly=True)
-            all_items.append(items)
-            tot_num_items += len(items)
+            if items:
+                all_items.append(items)
+                tot_num_items += len(items)
         end = datetime.now()
         diff = str(end-start)
         logger.debug("< Added "+str(tot_num_items)+" new items in "+ diff +"!")
@@ -259,6 +268,9 @@ class Tracker(object):
         """ Inserts an item """
         global NUM_ITEMS
         logger = logging.getLogger('outfitter')
+        if item is False:
+            logger.error("<<<< Error inserting item")
+            return False
         orm_item = self._get_item(item['itemid'])
         if orm_item is None:
             if item is not False:
@@ -303,15 +315,13 @@ class Tracker(object):
                 session.add(orm_brand)
                 session.flush()
                 session.commit()
-                logger.info("<<< Inserted brand "+str(orm_brand))
+                logger.info("<<< Insert "+str(orm_brand))
             else:
-                logger.info("<<< Should insert brand "+str(orm_brand))
+                logger.info("<<< Should insert "+str(orm_brand))
         else:
             brandid = orm_brand.index
-            logger.debug("<<< Brand "+orm_brand.name+" [" +str(brandid)+"]")
-
+            logger.debug("<<< Found "+str(orm_brand))
         self._insert_storebrand(session, brand, insert)
-
         return orm_brand
 
     def _insert_storebrand(self, session, brand, insert):
@@ -321,6 +331,8 @@ class Tracker(object):
         orm_storebrand = self._get_storebrand(brand['name'], brand['gender'])
         if orm_storebrand is None:
             brandid = self._get_brand_id(brand['name'])
+            if 'shopUrl' not in brand.keys():
+                brand['shopUrl'] = None
             orm_storebrand = orm.StoreBrand(key=brand['key'],
                                             storeid=self.storeid,
                                             brandid=brandid,

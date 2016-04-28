@@ -102,34 +102,36 @@ class AsosTracker(Tracker):
         items = []
         logger.debug(">>> Get articles "+brand.url)
         req = urllib2.Request(brand.url.replace(' ', '%20'), headers=HEADER)
-        try:
-            data = urllib2.urlopen(req).read()
-            tree = lxml.html.fromstring(data)
-            itemsel = "div[id*=\"items-wrapper\"] ul[id*=\"items\"] li " \
-                      "div[class*=\"categoryImageDiv\"] " \
-                      "a[class*=\"productImageLink\"]"
-            items_data = tree.cssselect(itemsel)
-            for article in items_data:
-                if article is not None:
-                    itemid = article.attrib['href'].split('&')[0].split('=')[1]
-                    item = self._get_item(itemid)
-                    if item is None:
-                        itemurl = article.attrib['href'].replace(' ', '%20')
-                        item_data = self._get_item_data(brand, itemurl)
-                        item = self._insert_item(session, item_data, insert)
-                    else:
-                        logger.warning("<<<< "+str(item)+" found in DB")
-                    items.append(item)
-        except:
-            logger.error("<<< Opening URL failed")
+        # try:
+        data = urllib2.urlopen(req).read()
+        tree = lxml.html.fromstring(data)
+        # itemsel = r"div[id*=\"items-wrapper\"] ul[id*=\"items\"] li " \
+        #           r"div[class*=\"categoryImageDiv\"] " \
+        #           r"a[class*=\"productImageLink\"]"
+        #items_data = tree.cssselect('div[id*=\"items-wrapper\"] ul[id*=\"items\"] li div[class*=\"categoryImageDiv\"] a[class*=\"productImageLink\"]')
+        
+        items_data = tree.cssselect('li[class*=\"product-container\"] a')
+        print items_data
+        for article in items_data:
+            if article is not None:
+                itemid = article.attrib['href'].split('&')[0].split('=')[1]
+                item = self._get_item(itemid)
+                if item is None:
+                    itemurl = article.attrib['href'].replace(' ', '%20')
+                    item_data = self._get_item_data(itemurl)
+                    item = self._insert_item(session, item_data, insert)
+                else:
+                    logger.warning("<<<< "+str(item)+" found in DB")
+                items.append(item)
+        # except:
+            # logger.error("<<< Opening URL failed")
         return items
 
-    def _get_item_data(self, brand, itemurl):
+    def _get_item_data(self, itemurl):
         """ Gets the item for a given url """
         item = {}
         item['storeid'] = self.storeid
-        item['link'] = "http://www.asos.com"+itemurl
-        item['brandid'] = brand.brandid
+        item['link'] = itemurl
         item['itemid'] = item['link'].split('=')[1].split('&')[0]
         req = urllib2.Request(item['link'], headers=HEADER)
         idata = urllib2.urlopen(req).read()
@@ -140,8 +142,12 @@ class AsosTracker(Tracker):
         item['color'] = self._get_color(itree, item['images'][0])
         item['title'] = self._get_title(itree)
         item['category'] = self._get_category(itree)
-        item['gender'] = brand.gender.title()
+        item['gender'] = self._get_gender(itree)
         item['uuid'] = self._create_uuid(item['link'])
+        brandname = self._get_brandname(itree)
+        print item['link']
+        print 'brandname', brandname
+        item['brandid'] = self._get_brand_id(brandname)
         return item
 
     def _get_images(self, itree):
@@ -213,3 +219,35 @@ class AsosTracker(Tracker):
         except Exception:
             category = ""
         return self._encode_string(category)
+
+    def _get_brandname(self, itree):
+        """ Returns the brand """
+        try:
+            brandsel = 'div[id*=\'ctl00_ContentMainPage_brandInfoPanel\'] h2'
+            brand = itree.cssselect(brandsel)[0].text_content()
+            return brand.split("ABOUT ")[1].title()
+        except Exception:
+            return False
+
+    def _get_gender(self, itree):
+        """ Returns the gender """
+        try:
+            breadcrumbsel = 'div[class*=\'breadcrumbs\'] a'
+            breadcrumb = itree.cssselect(breadcrumbsel)
+            if 'Men' in breadcrumb[-1].attrib['href']:
+                return 'Male'
+            if 'Women' in breadcrumb[-1].attrib['href']:
+                return 'Female'
+            return ""
+        except:
+            return ""  
+
+    def _get_item_id(self, link):
+        """ Get the item ID for a given Asos link """
+        print link
+        regexp = 'iid=(.*?)&'
+        result = re.search(regexp, link)
+        if result:
+            return result.group(1)
+        else:
+            return False
