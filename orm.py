@@ -94,6 +94,16 @@ class Item(Base):
         image_json += "]"
         return image_json
 
+    def _get_price(self):
+        """ Get the price for a given item """
+        session = loadSession()
+        orm_price = session.query(ItemPrice)\
+                           .filter_by(itemid=self.index)\
+                           .order_by("checkdate desc")\
+                           .first()
+        session.close()
+        return orm_price
+
     def __str__(self):
         return """
         Item.create({ title: '%s',
@@ -132,6 +142,7 @@ class Item(Base):
                               gender: "%s",
                               brand: "%s",
                               store: "%s",
+                              price: "%s",
                               images: %s,
                           }
             })
@@ -144,6 +155,7 @@ class Item(Base):
                    self.gender,
                    self._get_brand(self.brandid),
                    self._get_store(self.storeid),
+                   self._get_price(),
                    images)
 
 class ItemImage(Base):
