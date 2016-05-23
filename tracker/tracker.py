@@ -327,12 +327,21 @@ class Tracker(object):
     def _insert_storebrand(self, session, brand, insert):
         """ Inserts a storebrand in the database if insert is True """
         logger = logging.getLogger('outfitter')
-        uuid = self._create_uuid(self._encode_string(brand['shopUrl']))
+        if 'gender' not in brand.keys():
+            brand['gender'] = None
         orm_storebrand = self._get_storebrand(brand['name'], brand['gender'])
         if orm_storebrand is None:
-            brandid = self._get_brand_id(brand['name'])
             if 'shopUrl' not in brand.keys():
-                brand['shopUrl'] = None
+                brandname = brand['name'].split(' ')[0]
+                brand = self._get_storebrand(brandname, brand['gender'])
+                if brand is None:   
+                    brand = {}
+                    brand['shopUrl'] = 'NULL'
+            
+            if 'key' not in brand.keys():
+                brand['key'] = 'NULL'
+            brandid = self._get_brand_id(brand['name'])
+            uuid = self._create_uuid(self._encode_string(brand['shopUrl']))
             orm_storebrand = orm.StoreBrand(key=brand['key'],
                                             storeid=self.storeid,
                                             brandid=brandid,

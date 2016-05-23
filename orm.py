@@ -23,11 +23,12 @@ class Brand(Base):
     logolargeurl = Column('logolargeurl', String(200), nullable=True)
     uuid = Column('uuid', String(50))
 
-    def __init__(self, name, logourl, logolargeurl, uuid):
-        self.name = unicode(name)
-        self.logourl = logourl
-        self.logolargeurl = logolargeurl
-        self.uuid = uuid
+    def __init__(self, **kwargs):
+        valid_keys = ["name", "logourl", "logolargeurl",
+                      "index", "uuid"]
+        for key in valid_keys:
+            self.__dict__[key] = kwargs.get(key)
+        #self.name = unicode(self.name)
 
     def __repr__(self):
         return """<Brand(id='%s', name='%s')>""" % (self.index, self.name)
@@ -56,12 +57,94 @@ class Item(Base):
                       "category", "gender", "uuid"]
         for key in valid_keys:
             self.__dict__[key] = kwargs.get(key)
-        
+
     def __repr__(self):
         return self.title + " [" +self.link+ "]"
-    
+
+    def _get_brand(self, brandid):
+        """ Get the brand for a given brandid """
+        session = loadSession()
+        orm_brand = session.query(Brand)\
+                           .filter_by(index=brandid)\
+                           .first()
+        session.close()
+        return orm_brand.name
+
+    def _get_store(self, storeid):
+        """ Get the store for a given storedid """
+        session = loadSession()
+        orm_store = session.query(Store)\
+                           .filter_by(index=storeid)\
+                           .first()
+        session.close()
+        return orm_store.name
+
+    def _get_images(self):
+        """ Get the images for a given item """
+        session = loadSession()
+        orm_images = session.query(ItemImage)\
+                           .filter_by(itemid=self.index)\
+                           .all()
+        if len(orm_images) < 1:
+            return False
+        session.close()
+        image_json = "["
+        for image in orm_images:
+            image_json += "{'url': \""+image.imageurl+"\"}, \r\n"
+        image_json += "]"
+        return image_json
+
     def __str__(self):
-        return self.title + " [" +self.link+ "]"
+        return """
+        Item.create({ title: '%s',
+                      content:
+                      {
+                          itemid: '%s',
+                          link: '%s',
+                          color: '%s',
+                          category: '%s',
+                          gender: '%s',
+                          brand: '%s',
+                          store: '%s',
+                      }
+        })
+
+        """ % (self.title, \
+               self.itemid,
+               self.link,
+               self.color,
+               self.category,
+               self.gender,
+               self._get_brand(self.brandid),
+               self._get_store(self.storeid))
+
+    def _to_json(self):
+        images = self._get_images()
+        if images:
+            return """
+            Item.create({ title: "%s",
+                          content:
+                          {
+                              itemid: "%s",
+                              link: "%s",
+                              color: "%s",
+                              category: "%s",
+                              gender: "%s",
+                              brand: "%s",
+                              store: "%s",
+                              images: %s,
+                          }
+            })
+    
+            """ % (self.title, \
+                   self.itemid,
+                   self.link,
+                   self.color,
+                   self.category,
+                   self.gender,
+                   self._get_brand(self.brandid),
+                   self._get_store(self.storeid),
+                   images)
 
 class ItemImage(Base):
     """ Database model of ItemImage """
@@ -92,7 +175,7 @@ class ItemPrice(Base):
     def __init__(self, itemid, price, currency, date):
         self.itemid = itemid
         self.price = price
-        self.currency = currency 
+        self.currency = currency
         self.checkdate = date
 
     def __repr__(self):
@@ -177,7 +260,7 @@ class ProductPrice(Base):
     def __init__(self, productid, price, currency, date):
         self.productid = productid
         self.price = price
-        self.currency = currency 
+        self.currency = currency
         self.checkdate = date
 
     def __repr__(self):
@@ -258,7 +341,7 @@ class User(Base):
     __table_args__ = {'autoload':True}
     id = Column('id', Integer, primary_key=True)
     name = Column('username', String(50))
-    
+
     def __init__(self, name):
         self.name = name
 

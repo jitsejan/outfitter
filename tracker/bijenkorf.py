@@ -1,3 +1,5 @@
+""" outfitter/tracker/bijenkorf.py """
+# -*- coding: utf-8 -*-
 ################################################################################
 # Application:      Outfitter
 # File:             bijenkorf.py
@@ -144,7 +146,6 @@ class BijenkorfTracker(Tracker):
                 else:
                     logger.warning("<<<< "+str(item)+" found in DB")
                 items.append(item)
-                sys.exit()
 
         # Find pagination
         pagesel = 'ul[class*=\"dbk-pagination\"] li a'
@@ -234,7 +235,7 @@ class BijenkorfTracker(Tracker):
             currency = itree.cssselect('meta[itemprop*=\'priceCurrency\']'[0])
             return currency.attrib['content']
         except:
-            return ""
+            return "EUR"
 
     def _get_color(self, itree):
         """ Returns the color """
@@ -249,7 +250,7 @@ class BijenkorfTracker(Tracker):
         try:
             regexp = '"name": "(.*)?"'
             result = re.search(regexp, idata)
-            return self._encode_string(result.group(1))
+            return self._encode_string(result.group(1).decode("utf-8"))
         except:
             return ""
     
@@ -257,7 +258,7 @@ class BijenkorfTracker(Tracker):
         """ Returns the category """
         try:
             result = re.search('"category": "(.*)?"', idata).group(1)
-            return result.split('/')[-1]
+            return result.split('/')[-1].decode("utf-8")
         except:
             return ""      
 
@@ -265,7 +266,7 @@ class BijenkorfTracker(Tracker):
         """ Returns the brand """
         try:
             result = re.search('"brand": "(.*)?"', idata).group(1)
-            return result
+            return result.decode("utf-8")
         except:
             return ""      
     

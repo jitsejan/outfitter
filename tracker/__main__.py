@@ -39,6 +39,17 @@ logger.setLevel(logging.DEBUG)
 # Definitions
 ################################################################################
 
+def get_all_items_in_db(session, limit):
+    logger.info('Limit is '+str(limit))
+    print 'Item.delete_all\r\n'
+    items = session.query(orm.Item)\
+                   .limit(limit)\
+                   .all()
+    for item in items:
+        if item._to_json() is not None:
+            print item._to_json()
+
+
 def get_tracker(session, store):
     """ Returns the tracker for a given store """
     if store == 'zalando':
@@ -82,8 +93,8 @@ def main():
         itemid = tracker._get_item_id(args.link)
         if itemid:
             item = tracker._get_item(itemid)
-            if item:
-                logger.info("< Found " +str(item.itemid)+ " in DB")
+            if item is not None:
+                logger.info("< Found " +str(item)+ " in DB")
             else:
                 logger.warning("< No item found! Need to parse")
                 item = tracker._get_item_data(args.link)
@@ -93,7 +104,6 @@ def main():
                     logger.error("< No item found")
         else:
             logger.error('< Item ID not found')
-            
     elif args.store is not None and args.action is not None:
         tracker = get_tracker(session, args.store)
         if args.action == 'brands':
@@ -106,7 +116,9 @@ def main():
             logger.error('< Unknown action. Exiting')
             sys.exit()
     else:
-        logger.error('< Nothing to do. Use -h to show the help')
+        limit = 100000
+        get_all_items_in_db(session, limit)
+        #logger.error('< Nothing to do. Use -h to show the help')
     session.close()
 
 ################################################################################

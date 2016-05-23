@@ -86,7 +86,7 @@ class AsosTracker(Tracker):
     def _get_brand_data(self, html_data):
         """ Retrieves brand info from HTML data """
         brand = {}
-        brand['name'] = self._encode_string(html_data.text_content())
+        brand['name'] = self._encode_string(html_data.text_content()).strip()
         brand['logoUrl'] = None
         brand['logoLargeUrl'] = None
         brand['shopUrl'] = html_data.attrib['href']
@@ -110,8 +110,7 @@ class AsosTracker(Tracker):
         #           r"a[class*=\"productImageLink\"]"
         #items_data = tree.cssselect('div[id*=\"items-wrapper\"] ul[id*=\"items\"] li div[class*=\"categoryImageDiv\"] a[class*=\"productImageLink\"]')
         
-        items_data = tree.cssselect('li[class*=\"product-container\"] a')
-        print items_data
+        items_data = tree.cssselect('li[class*=\"product-container\"] a[class*=\"product product-link\"]')
         for article in items_data:
             if article is not None:
                 itemid = article.attrib['href'].split('&')[0].split('=')[1]
@@ -225,6 +224,7 @@ class AsosTracker(Tracker):
         try:
             brandsel = 'div[id*=\'ctl00_ContentMainPage_brandInfoPanel\'] h2'
             brand = itree.cssselect(brandsel)[0].text_content()
+            print brand.split("ABOUT ")[1].title()
             return brand.split("ABOUT ")[1].title()
         except Exception:
             return False
@@ -244,7 +244,7 @@ class AsosTracker(Tracker):
 
     def _get_item_id(self, link):
         """ Get the item ID for a given Asos link """
-        print link
+        print 'Link', link
         regexp = 'iid=(.*?)&'
         result = re.search(regexp, link)
         if result:
