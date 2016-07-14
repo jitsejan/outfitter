@@ -1,6 +1,6 @@
 # README #
 
-This repository contains the first version of the Outfitter appplication that I am trying to put together.
+This repository contains the first version of the Outfitter appplication.
 
 ### What does Outfitter do? ###
 
