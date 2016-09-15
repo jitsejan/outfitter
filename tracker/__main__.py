@@ -117,7 +117,10 @@ def main():
             sys.exit()
     else:
         limit = 5
-        get_all_items_in_db(session, limit)
+        tracker = zalando.ZalandoTracker(session)
+        items = tracker.get_new_items()
+        print items
+        #get_all_items_in_db(session, limit)
         #logger.error('< Nothing to do. Use -h to show the help')
     session.close()
 

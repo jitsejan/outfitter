@@ -27,12 +27,14 @@ import json
 import logging
 import urllib, urllib2
 
+import sys
+
 ################################################################################
 # Definitions
 ################################################################################
 __author__ = "Jitse-Jan van Waterschoot"
 __copyright__ = "Copyright 2015-2016"
-__credits__ = ["JItse-Jan van Waterschoot"]
+__credits__ = ["Jitse-Jan van Waterschoot"]
 __license__ = "GPL"
 __version__ = "1.0.0"
 __maintainer__ = "Jitse-Jan van Waterschoot"
@@ -195,4 +197,3 @@ class ZalandoTracker(Tracker):
             return result.group(1)
         else:
             return False
-    
