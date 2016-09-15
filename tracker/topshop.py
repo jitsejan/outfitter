@@ -45,22 +45,6 @@ class TopshopTracker(Tracker):
     def __init__(self, *args, **kwargs):
         super(TopshopTracker,self).__init__('Topshop', *args, **kwargs)
 
-    #############################################################################
-    # Function:         _get_brands
-    # Input:            
-    # Output:           
-    # Goal:             
-    # Targets:          <div class="block_search_filter categoryBlock" id="category_0_998556" filter_id="1">
-    #					    <div class="cf"><span class="filter_label">Category</span></div>
-	#    		            <div class="cf">
-    # 						<ul>
-    #   						<li class="category_2823526" id="f_2823526" title="2823526">
-    #                               <a href="http://eu.topman.com/en/tmeu/category/brands-617803/view-all-brands-1700863/amplified-5051590?N=10303+38063&Ndr=100000&Nr=OR%28product.emailBackInStock%3AY%2CNOT%28product.inventory%3A0%29%29&Nrpp=20&siteId=%2F13061"
-    # 											removeaction=""
-    # 											displayname = "TopMan_eu_category"
-    # 											dim="?N=10303+38063&Ndr=100000&Nr=OR%28product.emailBackInStock%3AY%2CNOT%28product.inventory%3A0%29%29&Nrpp=20&siteId=%2F13061" title="Amplified">Amplified<span
-    # 											class="item_count">(5)</span></a>
-    #                   		</li>
     def _get_brands(self, session, insert):
         brands = []
         

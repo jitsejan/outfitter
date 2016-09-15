@@ -1,36 +1,46 @@
+""" tracker/asos.py """
 # -*- coding: utf-8 -*-
 ################################################################################
 # Application:      Outfitter
 # File:             asos.py
-# Goal:             
-# Input:            
-# Output:           
-# Example:          
+# Goal:
+# Input:
+# Output:
+# Example:
 #
 # History:          2016-02-10 - JJ     Creation of the file
+#                   2016-04-21 - JJ     Refactor for Pylint
 #
 ################################################################################
 
 ################################################################################
 # Imports
 ################################################################################
-from tracker import Tracker
-from stores import asos
-import orm, olog
-import json
+from outfitter.tracker.tracker import Tracker
 import re
 import lxml.html
-import shortuuid
-import time
 import urllib2
-import unidecode
+import logging
 
 ################################################################################
 # Definitions
 ################################################################################
-author =    "JJ"
-appName =   "Outfitter"
-
+__author__ = "Jitse-Jan van Waterschoot"
+__copyright__ = "Copyright 2015-2016"
+__credits__ = ["JItse-Jan van Waterschoot"]
+__license__ = "GPL"
+__version__ = "1.0.0"
+__maintainer__ = "Jitse-Jan van Waterschoot"
+__email__ = "mail@jitsejan.nl"
+__status__ = "Production"
+HEADER = {'Accept-Language': 'nl-NL',
+       'User-Agent': """Mozilla/5.0 (Windows; U;
+                                    Windows NT 6.1;
+                                    nl-NL;
+                                    rv:1.9.1.5)
+                       Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729);
+                       nl-NL"""}
+NUM_ITEMS = 0
 ################################################################################
 # Functions
 ################################################################################
@@ -40,243 +50,204 @@ appName =   "Outfitter"
 ################################################################################
 
 class AsosTracker(Tracker):
-
+    """ Defines the AsosTracker class """
     def __init__(self, *args, **kwargs):
-        super(AsosTracker,self).__init__('Asos', *args, **kwargs)
+        """ Initialize the ZalandoTracker """
+        super(AsosTracker, self).__init__('Asos', *args, **kwargs)
 
-    ############################################################################
-    # Function:         _get_brands
-    # Input:            self, session, insert
-    # Output:           brands
-    # Goal:             
-    # Targets:          <div id="brands_section">
-    #                       <div id="letter_a" class="letter">
-    #                           <h2>A</h2>
-    #                           <ul><!--mp_trans_remove_start-->
-    #                               <li><a href="http://www.asos.com/men/a-to-z-of-brands/abercrombie-and-fitch/cat/?cid=19971"><strong>Abercrombie &amp; Fitch</strong></a></li>
-    #
-    # 
     def _set_brands(self, session, insert):
+        """ Sets the brands for the tracker """
+        logger = logging.getLogger('outfitter')
         brands = []
-        
-        maleBrandsUrl = "http://www.asos.com/men/a-to-z-of-brands/cat/pgehtml.aspx?cid=1361"
-        gender = 'male'
-        olog.log("AsosTracker._set_brands > Calling <b>"+maleBrandsUrl+"</b>", 'info')
-
-        hdr = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729); nl-NL'}
-        req = urllib2.Request(maleBrandsUrl, headers=hdr)
-        data = urllib2.urlopen(req).read()
-        tree = lxml.html.fromstring(data)
-        
-        brand_data = tree.cssselect('div[id*=\"brands_section\"] div ul li a')
-        for b in brand_data:
-            brand = {'key' : None, 'name' : None, 'logoUrl' : None, 'logoLargeUrl' : None, 'shopUrl' : None}
-            brand['name'] = unicode(b.text_content()).encode('ascii', 'xmlcharrefreplace')
-            brand['shopUrl'] = b.attrib['href']
-            brand['key'] = b.attrib['href'].rsplit('=',1)[1]
-            uuid = str(shortuuid.uuid(brand['name']))
-            br = orm.Brand(brand['name'], brand['logoUrl'], brand['logoLargeUrl'], uuid)
-            olog.log("AsosTracker._set_brands << Found brand <b>"+br.name+"</b>", 'debug')
-
-            if insert is True:
-                brand_in_db = session.query(orm.Brand).filter_by(name=unicode(br.name)).first()
-                if brand_in_db is None:
-                    session.add(br)
-                    session.flush()
-                    brandid = br.id
-                    olog.log("AsosTracker._set_brands >>> Inserted brand <b>"+br.name+"</b> with id <b>" + str(brandid) + "</b>", "warning")
-                else:
-                    brandid = brand_in_db.id
-                    olog.log("Brand <b>"+brand_in_db.name+"</b> already in database with id <b>" + str(brandid) + "</b>", "debug")
-                
-                storebrand_in_db = session.query(orm.StoreBrand).filter_by(storeid=unicode(self.storeid)).filter_by(brandid=brandid).filter_by(gender=gender).first()
-                if storebrand_in_db is None:
-                    storebrand = {'key': None, 'storeid' : None, 'brandid' : None, 'gender' : None, 'url' : None}
-                    sb = orm.StoreBrand(brand['key'], self.storeid, brandid, gender, brand['shopUrl'])
-                    olog.log("AsosTracker._set_brands >>> Inserted <b>"+str(sb)+"</b>", "warning")
-                    session.add(sb)
-                    session.flush()
-
-
-            brands.append(br)
-        
-
-        femaleBrandsUrl = "http://www.asos.com/Women/A-To-Z-Of-Brands/Cat/pgehtml.aspx?cid=1340"
-        gender = 'female'
-        olog.log("AsosTracker._set_brands > Calling <b>"+femaleBrandsUrl+"</b>", 'info')
-
-        hdr = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729); nl-NL'}
-        req = urllib2.Request(femaleBrandsUrl, headers=hdr)
-        data = urllib2.urlopen(req).read()
-        tree = lxml.html.fromstring(data)
-        
-        brand_data = tree.cssselect('div[id*=\"brands_section\"] div ul li a')
-        for b in brand_data:
-            brand = {'key' : None, 'name' : None, 'logoUrl' : None, 'logoLargeUrl' : None, 'shopUrl' : None}
-            brand['name'] = unicode(b.text_content()).encode('ascii', 'xmlcharrefreplace')
-            brand['shopUrl'] = b.attrib['href']
-            brand['key'] = b.attrib['href'].rsplit('=',1)[1]
-            uuid = str(shortuuid.uuid(brand['name']))
-            br = orm.Brand(brand['name'], brand['logoUrl'], brand['logoLargeUrl'], uuid)
-            olog.log("AsosTracker._set_brands << Found brand <b>"+br.name+"</b>", 'debug')
-
-            if insert is True:
-                brand_in_db = session.query(orm.Brand).filter_by(name=unicode(br.name)).first()
-                if brand_in_db is None:
-                    session.add(br)
-                    session.flush()
-                    brandid = br.id
-                    olog.log("AsosTracker._set_brands >>> Inserted brand <b>"+br.name+"</b> with id <b>" + str(brandid) + "</b>", "warning")
-                else:
-                    brandid = brand_in_db.id
-                    olog.log("Brand <b>"+brand_in_db.name+"</b> already in database with id <b>" + str(brandid) + "</b>", "debug")
-                
-                storebrand_in_db = session.query(orm.StoreBrand).filter_by(storeid=unicode(self.storeid)).filter_by(brandid=brandid).filter_by(gender=gender).first()
-                if storebrand_in_db is None:
-                    storebrand = {'key': None, 'storeid' : None, 'brandid' : None, 'gender' : None, 'url' : None}
-                    sb = orm.StoreBrand(brand['key'], self.storeid, brandid, gender, brand['shopUrl'])
-                    olog.log("AsosTracker._set_brands >>> Inserted <b>"+str(sb)+"</b>", "warning")
-                    session.add(sb)
-                    session.flush()
-
-            session.commit()
-            brands.append(br)
-        return brands
-
-    #############################################################################
-    # Function:         _get_items_for_brand
-    # Input:            self, brandurl, session, insert
-    # Output:           items
-    # Goal:             
-    # Targets:          <div id="items-wrapper" class="items">
-    #            			<ul id="items">
-    # 						    <li>
-    # 						        <div class="categoryImageDiv" data-parentsku="">
-    #                                   <a id="ctl00_ContentMainPage_ctlCategoryRefine_rptCategory_ctl00_hlproductImageLink" class="productImageLink" title="Nixon Silver Queenpin Watch" href="/Nixon/Nixon-Silver-Queenpin-Watch/Prod/pgeproduct.aspx?iid=5748476&amp;cid=8013&amp;sh=0&amp;pge=0&amp;pgesize=36&amp;sort=-1&amp;clr=Silver&amp;totalstyles=18&amp;gridsize=3"><img id="ctl00_ContentMainPage_ctlCategoryRefine_rptCategory_ctl00_imgProductImage" class="product-image" onload="crp.fire()" src="http://images.asos-media.com/inv/media/6/7/4/8/5748476/silver/image1xl.jpg" alt="Nixon Silver Queenpin Watch" style="border-width:0px;" /></a>
-    def _get_items_for_brand(self, brand, session, insert):
-        items = []
-        olog.log("AsosTracker._get_items_for_brand > Calling <b>"+brand.url+"</b>", "info")
-        hdr = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; nl-NL; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729);'}
-        req = urllib2.Request(brand.url, headers=hdr)
-        try:
+        urls = {}
+        urls['male'] = "http://www.asos.com/men/" \
+                       "a-to-z-of-brands/cat/pgehtml.aspx?cid=1361"
+        urls['female'] = "http://www.asos.com/Women" \
+                         "/A-To-Z-Of-Brands/Cat/pgehtml.aspx?cid=1340"
+        for _, gender in enumerate(urls):
+            logger.debug(">> Calling "+urls[gender])
+            req = urllib2.Request(urls[gender], headers=HEADER)
             data = urllib2.urlopen(req).read()
             tree = lxml.html.fromstring(data)
-            
-            date = time.strftime('%Y-%m-%d %H:%M:%S')
-            
-            all_items = tree.cssselect('div[id*=\"items-wrapper\"] ul[id*=\"items\"] li div[class*=\"categoryImageDiv\"] a[class*=\"productImageLink\"]')
-            for it in all_items:
-                if it is not None:
-                    iid = it.attrib['href'].split('&')[0].split('=')[1]
-                    if insert is True:
-                        i = session.query(orm.Item).filter_by(itemid=iid).filter_by(storeid=self.storeid).first()
-                        if i is None:
-                            item = self._get_item(brand, it.attrib['href'].split('&')[0])
-                            i = orm.Item(item['storeid'], item['itemid'], item['brandid'], item['link'], item['color'], item['title'], item['category'], item['gender'], item['uuid'])
-                            session.add(i)
-                            session.flush()
-                            itemid = i.id
-                            olog.log("AsosTracker._get_items_for_brand >>> Inserted item <b>"+str(i)+"</b> with id <b>" + str(itemid) + "</b>", "warning")
-                            for imageurl in item['images']:
-                                ii = orm.ItemImage(itemid, imageurl)
-                                olog.log("AsosTracker._get_items_for_brand >>>> Inserted image <b>"+str(ii)+"</b>", "warning")
-                                session.add(ii)
-                            ip = orm.ItemPrice(itemid, item['price'], item['currency'], date)
-                            olog.log("AsosTracker._get_items_for_brand >>>> Inserted price <b>"+str(ip)+"</b>", "warning")
-                            session.add(ip)
-                        else:
-                            itemid = i.id
-                            olog.log("AsosTracker._get_items_for_brand >>> <b>"+i.title+"</b> already in database with id <b>" + str(itemid) + "</b>", "warning")
-                        #endif i is None
-                    #endif insert is True    
-                    items.append(i)
-                #endif it is not None
-            #endfor it in all_items
-        except:
-            pass # Opening url went wrong
-        session.commit()
-        
-        olog.log("AsosTracker._get_items_for_brand < Found <b>"+str(len(items))+" products</b>", "info")
-        
-        return items
-    
-    def _get_item(self, brand, itemurl):
-        item = {'storeid' : None, 'itemid' : None, 'brandid' : None, 'link' : None, 'color' : None, 'title' : None, 'category' : None, 'gender' : None}
-        item['storeid'] = self.storeid
-        item['link'] = "http://www.asos.com"+itemurl
-        item['brandid'] = brand.id
-        item['itemid'] = item['link'].split('=')[1]
-        
-        olog.log("AsosTracker._get_products_for_brand >> Calling <b>"+item['link']+"</b>", "debug")
+            brandsel = 'div[id*=\"brands_section\"] div ul li a'
+            brand_data = tree.cssselect(brandsel)
+            for html_data in brand_data:
+                brand = self._get_brand_data(html_data)
+                brand['gender'] = gender
+                orm_brand = self._insert_brand(session,
+                                               brand,
+                                               insert)
+                brands.append(orm_brand)
+             # endfor html_data
+        # endfor enumerate(urls)
+        logger.info("< Found "+str(len(brands))+ " brands")
+        return brands
 
-        hdr = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; nl-NL; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729);'}
-        req = urllib2.Request(item['link'], headers=hdr)
+    def _get_brand_data(self, html_data):
+        """ Retrieves brand info from HTML data """
+        brand = {}
+        brand['name'] = self._encode_string(html_data.text_content()).strip()
+        brand['logoUrl'] = None
+        brand['logoLargeUrl'] = None
+        brand['shopUrl'] = html_data.attrib['href']
+        try:
+            brand['key'] = html_data.attrib['href'].rsplit('=', 1)[1]
+        except:
+            brand['key'] = None
+        return brand
+
+    def _get_items_for_brand(self, brand, session, insert, thisweekonly=False):
+        """ Returns the items for a specific brand """
+        logger = logging.getLogger('outfitter')
+        items = []
+        logger.debug(">>> Get articles "+brand.url)
+        req = urllib2.Request(brand.url.replace(' ', '%20'), headers=HEADER)
+        # try:
+        data = urllib2.urlopen(req).read()
+        tree = lxml.html.fromstring(data)
+        # itemsel = r"div[id*=\"items-wrapper\"] ul[id*=\"items\"] li " \
+        #           r"div[class*=\"categoryImageDiv\"] " \
+        #           r"a[class*=\"productImageLink\"]"
+        #items_data = tree.cssselect('div[id*=\"items-wrapper\"] ul[id*=\"items\"] li div[class*=\"categoryImageDiv\"] a[class*=\"productImageLink\"]')
+        
+        items_data = tree.cssselect('li[class*=\"product-container\"] a[class*=\"product product-link\"]')
+        for article in items_data:
+            if article is not None:
+                itemid = article.attrib['href'].split('&')[0].split('=')[1]
+                item = self._get_item(itemid)
+                if item is None:
+                    itemurl = article.attrib['href'].replace(' ', '%20')
+                    item_data = self._get_item_data(itemurl)
+                    item = self._insert_item(session, item_data, insert)
+                else:
+                    logger.warning("<<<< "+str(item)+" found in DB")
+                items.append(item)
+        # except:
+            # logger.error("<<< Opening URL failed")
+        return items
+
+    def _get_item_data(self, itemurl):
+        """ Gets the item for a given url """
+        item = {}
+        item['storeid'] = self.storeid
+        item['link'] = itemurl
+        item['itemid'] = item['link'].split('=')[1].split('&')[0]
+        req = urllib2.Request(item['link'], headers=HEADER)
         idata = urllib2.urlopen(req).read()
         itree = lxml.html.fromstring(idata)
-        
         item['images'] = self._get_images(itree)
         item['price'] = self._get_price(item['link'])
-        item['currency'] = self._get_currency(item['link'])
+        item['currency'] = self._get_currency()
         item['color'] = self._get_color(itree, item['images'][0])
         item['title'] = self._get_title(itree)
         item['category'] = self._get_category(itree)
-        item['gender'] = brand.gender.title()
-        item['uuid'] = str(shortuuid.uuid(item['link']))
-        
+        item['gender'] = self._get_gender(itree)
+        item['uuid'] = self._create_uuid(item['link'])
+        brandname = self._get_brandname(itree)
+        print item['link']
+        print 'brandname', brandname
+        item['brandid'] = self._get_brand_id(brandname)
         return item
-    
+
     def _get_images(self, itree):
+        """ Returns the images """
         images = []
         try:
-            image_data = itree.cssselect('div[id*=\"productImages\"] div[class*=\"productImagesItems\"] div[class*=\"image\"] img')
+            imagesel = 'div[id*=\"productImages\"] '\
+                       'div[class*=\"productImagesItems\"] '\
+                       'div[class*=\"image\"] '\
+                       'img'
+            image_data = itree.cssselect(imagesel)
             for image in image_data:
-                try:
+                if 'src' in image.attrib.keys():
                     images.append(image.attrib['src'])
-                except:
-                    pass # false positive
-        except:
+        except Exception:
             pass
         return images
-        
+
     def _get_price(self, url):
-        hdr = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; it; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729);'}
+        """ Returns the price """
         url = url.replace('.com/', '.com/it/')
-        req = urllib2.Request(url, headers=hdr)
+        req = urllib2.Request(url, headers=HEADER)
         idata = urllib2.urlopen(req).read()
         try:
             regexp = '"ProductPriceInNetworkCurrency":"(.*?)"'
             result = re.search(regexp, idata)
             price = result.group(1)
-        except:
+        except Exception:
             price = ""
         return price
 
-    def _get_currency(self, url):
+    def _get_currency(self):
+        """ Returns the currency """
         currency = 'EUR' # Cheat, since for the price we pick the EUR version
         return currency
-        
+
     def _get_color(self, itree, image):
+        """ Returns the color """
         try:
-            color = itree.cssselect('div[class*=\'colour\'] option[selected*=\'selected\']')[0].attrib['value']
-        except:
+            colorsel = 'div[class*=\'colour\'] option[selected*=\'selected\']'
+            color = itree.cssselect(colorsel)[0]
+            if 'value' in color.attrib.keys():
+                return color.attrib['value']
+        except Exception:
             try:
-                regexp = "http:\/\/images.asos-media.com\/inv\/media\/[\d]*\/[\d]*\/[\d]*\/[\d]*\/[\d]*\/([\w]*)\/[\d\w]*.jpg"
+                regexp = r"http:\/\/images.asos-media.com\/inv\/media\/[\d]*"\
+                         r"\/[\d]*\/[\d]*\/[\d]*\/[\d]*\/([\w]*)\/[\d\w]*.jpg"
                 result = re.search(regexp, image)
                 color = result.group(1)
-            except:
+            except Exception:
                 color = ""
         return color
-    
+
     def _get_title(self, itree):
-    	try:
-    	    title = itree.cssselect('div[class*=\'title\'] h1')[0].text_content().strip()
-    	except:
-        	title = ""
-    	return unicode(title).encode('ascii', 'xmlcharrefreplace')
-    
-    def _get_category(self, itree):    
+        """ Returns the title """
         try:
-            category = itree.cssselect('div[id*=\'ctl00_ContentMainPage_productInfoPanel\'] strong')[0].text_content().strip()
-        except:
+            titlesel = 'div[class*=\'title\'] h1'
+            title = itree.cssselect(titlesel)[0].text_content().strip()
+        except Exception:
+            title = ""
+        return self._encode_string(title)
+
+    def _get_category(self, itree):
+        """ Returns the category """
+        try:
+            categorysel = 'div[id*=\'ctl00_ContentMainPage_productInfoPanel\']'\
+                          ' strong'
+            category = itree.cssselect(categorysel)[0].text_content().strip()
+        except Exception:
             category = ""
-        return unicode(category).encode('ascii', 'xmlcharrefreplace')
+        return self._encode_string(category)
+
+    def _get_brandname(self, itree):
+        """ Returns the brand """
+        try:
+            brandsel = 'div[id*=\'ctl00_ContentMainPage_brandInfoPanel\'] h2'
+            brand = itree.cssselect(brandsel)[0].text_content()
+            print brand.split("ABOUT ")[1].title()
+            return brand.split("ABOUT ")[1].title()
+        except Exception:
+            return False
+
+    def _get_gender(self, itree):
+        """ Returns the gender """
+        try:
+            breadcrumbsel = 'div[class*=\'breadcrumbs\'] a'
+            breadcrumb = itree.cssselect(breadcrumbsel)
+            if 'Men' in breadcrumb[-1].attrib['href']:
+                return 'Male'
+            if 'Women' in breadcrumb[-1].attrib['href']:
+                return 'Female'
+            return ""
+        except:
+            return ""  
+
+    def _get_item_id(self, link):
+        """ Get the item ID for a given Asos link """
+        print 'Link', link
+        regexp = 'iid=(.*?)&'
+        result = re.search(regexp, link)
+        if result:
+            return result.group(1)
+        else:
+            return False
